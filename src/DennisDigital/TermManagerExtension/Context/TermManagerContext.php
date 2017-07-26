@@ -31,6 +31,11 @@ class TermManagerContext implements SnippetAcceptingContext
   private $batch;
 
   /**
+   * Flag to clean vocabulary used for tests if it was created by the test suite.
+   */
+  private $cleanVocabulary;
+
+  /**
    * @BeforeScenario
    *
    * @param BeforeScenarioScope $scope
@@ -44,12 +49,7 @@ class TermManagerContext implements SnippetAcceptingContext
     //$this->MinkContext = $environment->getContext('Drupal\DrupalExtension\Context\MinkContext');
     $this->drupalContext = $environment->getContext('Drupal\DrupalExtension\Context\DrupalContext');
     $this->drupalContext->getDriver('drupal')->getCore()->bootstrap();
-
-    // Make sure term manager is enabled.
-    variable_set('dennis_term_manager_enabled', 1);
-
-    // Initial cleanup of taxonomy tree and queue.
-    $this->iCleanUpTheTestingTermsForTermManager();
+    $this->setup();
   }
 
   /**
@@ -87,6 +87,26 @@ class TermManagerContext implements SnippetAcceptingContext
    */
   private function getBatch() {
     return $this->batch;
+  }
+
+  /**
+   * Initial setup.
+   */
+  private function setup() {
+    // Make sure term manager is enabled.
+    variable_set('dennis_term_manager_enabled', 1);
+
+    // Creates Vocabulary if needed.
+    if (taxonomy_vocabulary_machine_name_load('term_manager_tests') == FALSE) {
+      $vocabulary = new \stdClass();
+      $vocabulary->name = 'Term Manager Tests';
+      $vocabulary->machine_name = 'term_manager_tests';
+      taxonomy_vocabulary_save($vocabulary);
+      $this->cleanVocabulary = TRUE;
+    }
+
+    // Initial cleanup of taxonomy tree and queue.
+    $this->iCleanUpTheTestingTermsForTermManager();
   }
 
   /**
