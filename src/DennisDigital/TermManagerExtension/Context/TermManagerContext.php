@@ -21,6 +21,16 @@ class TermManagerContext implements SnippetAcceptingContext
   private $drupalContext;
 
   /**
+   * Stores the file.
+   */
+  private $file;
+
+  /**
+   * Stores the batch information.
+   */
+  private $batch;
+
+  /**
    * @BeforeScenario
    *
    * @param BeforeScenarioScope $scope
@@ -43,15 +53,51 @@ class TermManagerContext implements SnippetAcceptingContext
   }
 
   /**
-   * Batch processing.
+   * Sets the file to be used.
    *
    * @param $file
    */
-  private function batch($file) {
+  private function setFile($file) {
+    $this->file = $file;
+  }
+
+  /**
+   * Getter for file.
+   *
+   * @return mixed
+   */
+  private function getFile() {
+    return $this->file;
+  }
+
+  /**
+   * Setter for batch.
+   *
+   * @param $batch
+   */
+  private function setBatch($batch) {
+    $this->batch = $batch;
+    batch_set($batch);
+  }
+
+  /**
+   * Getter for batch.
+   *
+   * @return mixed
+   */
+  private function getBatch() {
+    return $this->batch;
+  }
+
+  /**
+   * Batch processing.
+   */
+  private function batch() {
     $destination = _dennis_term_manager_get_files_folder();
 
     // Copy the CSV file into files folder.
-    $file = _dennis_term_manager_file_copy($file, $destination);
+    $file = _dennis_term_manager_file_copy($this->getFile(), $destination);
+    $this->setFile($file);
 
     // Process the file.
     $batch = _dennis_term_manager_batch_init($file);
@@ -59,24 +105,23 @@ class TermManagerContext implements SnippetAcceptingContext
     // Term Manager implements hook_batch_alter() to set progressive to FALSE.
     $batch['behat_extension'] = TRUE;
 
+    $this->checkErrors();
+
     // Process batch to queue up operations.
-    batch_set($batch);
+    $this->setBatch($batch);
+
     batch_process();
-    $this->batchCleanup($batch);
+    $this->batchCleanup();
 
     // Process queue.
-    //@todo this is not working
-    //drupal_cron_run();
-    $this->processQueue($file);
+    $this->processQueue();
 
   }
 
   /**
    * Processes the queue.
-   *
-   * @param $file
    */
-  private function processQueue($file) {
+  private function processQueue() {
     // Process the queue.
     foreach (dennis_term_manager_cron_queue_info() as $queue_name => $info) {
       $function = $info['worker callback'];
@@ -88,23 +133,13 @@ class TermManagerContext implements SnippetAcceptingContext
       }
     }
 
-    $date = date('Y-m-d_H-i-s', REQUEST_TIME);
-    $errors_file = preg_replace("/(.*)[.](.*)/", "$1-$date-errors.$2", $file->uri);
-    $dry_run_file = preg_replace("/(.*)[.](.*)/", "$1-$date-dry_run.$2", $file->uri);
-    $report_file = preg_replace("/(.*)[.](.*)/", "$1-$date-report.txt", $file->uri);
-
-    // Test that file with errors doesn't exist.
-    if (file_exists($errors_file)) {
-      throw new Exception(t('There were errors during execution, see !file_name for more details', array(
-        '!file_name' => $errors_file,
-      )));
-    }
+    $this->checkErrors();
   }
 
   /**
    * Cleans queue table.
    *
-   * @param $batch
+   * @param $name The queue name.
    */
   private function queueCleanup($name) {
     db_delete('queue')
@@ -114,10 +149,9 @@ class TermManagerContext implements SnippetAcceptingContext
 
   /**
    * Cleans batch table.
-   *
-   * @param $batch
    */
-  private function batchCleanup($batch) {
+  private function batchCleanup() {
+    $batch = $this->getBatch();
     if (!empty($batch['id'])) {
       db_delete('batch')
         ->condition('bid', $batch['id'])
@@ -153,8 +187,8 @@ class TermManagerContext implements SnippetAcceptingContext
   {
     $file = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
 
-    $this->batch($file);
-
+    $this->setFile($file);
+    $this->batch();
   }
 
   /**
@@ -189,7 +223,8 @@ class TermManagerContext implements SnippetAcceptingContext
   {
     $file = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
 
-    $this->batch($file);
+    $this->setFile($file);
+    $this->batch();
   }
 
   /**
@@ -326,6 +361,21 @@ class TermManagerContext implements SnippetAcceptingContext
   {
     $this->taxonomyCleanup();
     $this->queueCleanup('dennis_term_manager_queue');
+  }
+
+  private function checkErrors() {
+    $file = $this->getFile();
+    $date = date('Y-m-d_H-i-s', REQUEST_TIME);
+    $errors_file = preg_replace("/(.*)[.](.*)/", "$1-$date-errors.$2", $file->uri);
+    $dry_run_file = preg_replace("/(.*)[.](.*)/", "$1-$date-dry_run.$2", $file->uri);
+    $report_file = preg_replace("/(.*)[.](.*)/", "$1-$date-report.txt", $file->uri);
+
+    // Test that file with errors doesn't exist.
+    if (file_exists($errors_file)) {
+      throw new \Exception(t('There were errors during execution, see !file_name for more details', array(
+        '!file_name' => drupal_realpath($errors_file),
+      )));
+    }
   }
 
 }
