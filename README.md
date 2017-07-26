@@ -19,8 +19,11 @@ Then run
 Add the extension the behat.yml on your site.
 ```
 default:
-  extensions:
-    DennisDigital\TermManagerExtension\Context\TermManagerContext
+  suites:
+    default:
+      contexts:
+        - FeatureContext
+        - DennisDigital\TermManagerExtension\Context\TermManagerContext
 ```
 
 See examples of tests in https://github.com/dennisinteractive/behat_term_manager_extension/tree/master/features
