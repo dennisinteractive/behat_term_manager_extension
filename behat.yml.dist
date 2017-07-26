@@ -3,5 +3,6 @@ default:
     default:
       contexts:
         - FeatureContext
+        - DennisDigital\TermManagerExtension\Context\TermManagerContext
   extensions:
-    Behat\TermManagerExtension
+    DennisDigital\TermManagerExtension

@@ -15,6 +15,9 @@ use Behat\MinkExtension\Context\RawMinkContext;
 class TermManagerContext implements SnippetAcceptingContext
 {
 
+  /**
+   * Stores drupal context.
+   */
   private $drupalContext;
 
   /**
