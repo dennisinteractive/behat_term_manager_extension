@@ -58,7 +58,6 @@ class TermManagerContext implements SnippetAcceptingContext
     $environment = $scope->getEnvironment();
 
     // Get all the contexts we need.
-    //$this->BDDCommonContext = $environment->getContext('Behat\BDDCommonExtension\Context\BDDCommonContext');
     //$this->MinkContext = $environment->getContext('Drupal\DrupalExtension\Context\MinkContext');
     $this->drupalContext = $environment->getContext('Drupal\DrupalExtension\Context\DrupalContext');
     $this->drupalContext->getDriver('drupal')->getCore()->bootstrap();
