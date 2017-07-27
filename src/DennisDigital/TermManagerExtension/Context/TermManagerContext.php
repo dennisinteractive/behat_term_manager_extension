@@ -92,7 +92,7 @@ class TermManagerContext implements SnippetAcceptingContext
     // Creates Vocabulary if needed.
     if ($vocabulary = taxonomy_vocabulary_machine_name_load($vocabularyMachineName)) {
       $this->vocabularyName = $vocabulary->name;
-      $this->vocabularyMachineName = $vocabulary->machine_name;
+      $this->vocabularyMachineName = $vocabulary->machineName;
     }
     else {
       $vocabulary = new \stdClass();
@@ -183,17 +183,36 @@ class TermManagerContext implements SnippetAcceptingContext
    * @param $file The file object or filename.
    */
   private function replaceTokens($file) {
+    // Support file obj or filename.
     if (is_object($file) && isset($file->uri)) {
-      $filename = $file->uri;
+      $filename = drupal_realpath($file->uri);
     }
     elseif (is_string($file)) {
       $filename = $file;
     }
-    $content = file_get_contents($filename);
 
-    $content = str_replace('{vocabulary_name}', $this->vocabularyName, $content);
+    // Detect delimiter.
+    $delimiter = _dennis_term_manager_detect_delimiter(file_get_contents($filename));
 
-    file_put_contents($filename, $content);
+    // Make a copy of the file for read only.
+    $tempFile = '/tmp/term_manager_token_replace.csv';
+    copy($filename, $tempFile);
+
+    // Create the file to save after replacing tokens.
+    $out = fopen($filename, 'w');
+
+    if (($handle = fopen($tempFile, "r")) !== FALSE) {
+      while (($data = fgetcsv($handle, 1000, $delimiter)) !== FALSE) {
+        $num = count($data);
+        for ($c = 0; $c < $num; $c++) {
+          $data[$c] = str_replace('{vocabulary_name}', $this->vocabularyName, $data[$c]);
+        }
+        fputcsv($out, $data, $delimiter, '"');
+      }
+      fclose($handle);
+    }
+    fclose($out);
+    unlink($tempFile);
   }
 
   /**
@@ -343,7 +362,7 @@ class TermManagerContext implements SnippetAcceptingContext
     $passFile = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
 
     // Copy to a temporary folder;
-    $tempFile = '/tmp/' . $csv;
+    $tempFile = '/tmp/term_manager_' . $csv;
     copy($passFile, $tempFile);
 
     // Replace tokens.
@@ -352,6 +371,8 @@ class TermManagerContext implements SnippetAcceptingContext
     // Compare exported CSV against the CSV saved on the repo.
     // Pass tree must be contained inside the exported tree in order for the test to pass.
     $this->diff($tempFile, $exported_tree);
+
+    unlink($tempFile);
   }
 
   /**
@@ -384,6 +405,7 @@ class TermManagerContext implements SnippetAcceptingContext
 
     // Export tree.
     dennis_term_manager_export_terms(',', array($this->vocabularyName), array(), DENNIS_TERM_MANAGER_DESTINATION_FILE);
+
     // Load the exported tree.
     $destination = _dennis_term_manager_get_files_folder();
     $exported_tree = drupal_realpath($destination) . '/taxonomy_export.csv';
@@ -435,17 +457,18 @@ class TermManagerContext implements SnippetAcceptingContext
     $dennis_term_manager_sbk = $term_child_count_column;
     uasort($actions, '_dennis_term_manager_sbk');
 
-    $filename = '/tmp/dupe_actions.csv';
+    $tempFile = '/tmp/term_manager_dupe_actions.csv';
     // Create new csv with actions.
-    $out = fopen($filename, 'w');
+    $out = fopen($tempFile, 'w');
     fputcsv($out, $heading_row, $delimiter, '"');
     foreach ($actions as $action) {
       fputcsv($out, $action, $delimiter, '"');
     }
 
     // Process file.
-    $this->setFilename($filename);
-    $this->batch($filename);
+    $this->setFilename($tempFile);
+    $this->batch($tempFile);
+    unlink($tempFile);
   }
 
   /**
