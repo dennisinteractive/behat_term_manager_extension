@@ -4,8 +4,6 @@ namespace DennisDigital\TermManagerExtension\Context;
 
 use Behat\Behat\Context\SnippetAcceptingContext;
 use Behat\Behat\Hook\Scope\BeforeScenarioScope;
-use Behat\Behat\Hook\Scope\BeforeStepScope;
-use Behat\MinkExtension\Context\RawMinkContext;
 
 /**
  * Class TermManagerContext
@@ -26,6 +24,11 @@ class TermManagerContext implements SnippetAcceptingContext
   private $file;
 
   /**
+   * Stores the filename.
+   */
+  private $filename;
+
+  /**
    * Stores the batch information.
    */
   private $batch;
@@ -34,6 +37,16 @@ class TermManagerContext implements SnippetAcceptingContext
    * Flag to clean vocabulary used for tests if it was created by the test suite.
    */
   private $cleanVocabulary;
+
+  /**
+   * @var string Vocabulary used to test terms.
+   */
+  private $vocabulary = 'Term Manager Tests';
+
+  /**
+   * @var string Vocabulary name used to test terms.
+   */
+  private $vocabularyName = 'term_manager_tests';
 
   /**
    * @BeforeScenario
@@ -53,6 +66,37 @@ class TermManagerContext implements SnippetAcceptingContext
   }
 
   /**
+   * Initial setup.
+   */
+  private function setup() {
+    // Make sure term manager is enabled.
+    variable_set('dennis_term_manager_enabled', 1);
+
+    // Creates Vocabulary if needed.
+    if (taxonomy_vocabulary_machine_name_load($this->vocabularyName) == FALSE) {
+      $vocabulary = new \stdClass();
+      $vocabulary->name = $this->vocabulary;
+      $vocabulary->machine_name = $this->vocabularyName;
+      taxonomy_vocabulary_save($vocabulary);
+      $this->cleanVocabulary = TRUE;
+    }
+
+    // Initial cleanup of taxonomy tree and queue.
+    $this->iCleanUpTheTestingTermsForTermManager();
+  }
+
+  /**
+   * @AfterScenario
+   */
+  public function cleanTaxonomy()
+  {
+    if ($vocabulary = taxonomy_vocabulary_machine_name_load('term_manager_tests')) {
+      $this->iCleanUpTheTestingTermsForTermManager();
+      taxonomy_vocabulary_delete($vocabulary->vid);
+    }
+  }
+
+  /**
    * Sets the file to be used.
    *
    * @param $file
@@ -68,6 +112,25 @@ class TermManagerContext implements SnippetAcceptingContext
    */
   private function getFile() {
     return $this->file;
+  }
+
+
+  /**
+   * Sets the filename to be used.
+   *
+   * @param $filename
+   */
+  private function setFilename($filename) {
+    $this->filename = $filename;
+  }
+
+  /**
+   * Getter for filename.
+   *
+   * @return mixed
+   */
+  private function getFilename() {
+    return $this->filename;
   }
 
   /**
@@ -90,33 +153,13 @@ class TermManagerContext implements SnippetAcceptingContext
   }
 
   /**
-   * Initial setup.
-   */
-  private function setup() {
-    // Make sure term manager is enabled.
-    variable_set('dennis_term_manager_enabled', 1);
-
-    // Creates Vocabulary if needed.
-    if (taxonomy_vocabulary_machine_name_load('term_manager_tests') == FALSE) {
-      $vocabulary = new \stdClass();
-      $vocabulary->name = 'Term Manager Tests';
-      $vocabulary->machine_name = 'term_manager_tests';
-      taxonomy_vocabulary_save($vocabulary);
-      $this->cleanVocabulary = TRUE;
-    }
-
-    // Initial cleanup of taxonomy tree and queue.
-    $this->iCleanUpTheTestingTermsForTermManager();
-  }
-
-  /**
    * Batch processing.
    */
   private function batch() {
     $destination = _dennis_term_manager_get_files_folder();
 
     // Copy the CSV file into files folder.
-    $file = _dennis_term_manager_file_copy($this->getFile(), $destination);
+    $file = _dennis_term_manager_file_copy($this->getFilename(), $destination);
     $this->setFile($file);
 
     // Process the file.
@@ -129,13 +172,12 @@ class TermManagerContext implements SnippetAcceptingContext
 
     // Process batch to queue up operations.
     $this->setBatch($batch);
-
     batch_process();
+
     $this->batchCleanup();
 
     // Process queue.
     $this->processQueue();
-
   }
 
   /**
@@ -184,17 +226,17 @@ class TermManagerContext implements SnippetAcceptingContext
    */
   private function taxonomyCleanup() {
     // Delete terms created during tests.
-    $term = taxonomy_get_term_by_name('Temp', 'category');
+    $term = taxonomy_get_term_by_name('Temp', $this->vocabularyName);
     if ($term = reset($term)) {
       taxonomy_term_delete($term->tid);
     }
 
-    $term = taxonomy_get_term_by_name('TM-Fruits', 'category');
+    $term = taxonomy_get_term_by_name('TM-Fruits', $this->vocabularyName);
     if ($term = reset($term)) {
       taxonomy_term_delete($term->tid);
     }
 
-    $term = taxonomy_get_term_by_name('TM-Fruits2', 'category');
+    $term = taxonomy_get_term_by_name('TM-Fruits2', $this->vocabularyName);
     if ($term = reset($term)) {
       taxonomy_term_delete($term->tid);
     }
@@ -205,9 +247,9 @@ class TermManagerContext implements SnippetAcceptingContext
    */
   public function iCreateATaxonomyTreeUsing($csv)
   {
-    $file = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
+    $filename = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
 
-    $this->setFile($file);
+    $this->setFilename($filename);
     $this->batch();
   }
 
@@ -226,7 +268,7 @@ class TermManagerContext implements SnippetAcceptingContext
     foreach ($exclude as $item) {
       unset ($columns[array_search($item, $columns)]);
     }
-    dennis_term_manager_export_terms(',', array('Category'), $columns, DENNIS_TERM_MANAGER_DESTINATION_FILE);
+    dennis_term_manager_export_terms(',', array($this->vocabulary), $columns, DENNIS_TERM_MANAGER_DESTINATION_FILE);
 
     $destination = _dennis_term_manager_get_files_folder();
     $exported_tree = drupal_realpath($destination) . '/taxonomy_export.csv';
@@ -241,9 +283,9 @@ class TermManagerContext implements SnippetAcceptingContext
    */
   public function termManagerProcesses($csv)
   {
-    $file = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
+    $filename = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
 
-    $this->setFile($file);
+    $this->setFilename($filename);
     $this->batch();
   }
 
@@ -261,12 +303,11 @@ class TermManagerContext implements SnippetAcceptingContext
     // Updated duplicated names, by removing the '-0' suffix.
     // This way we will end up with the same term name more than once. Useful to test the actions using tids.
     if (!$result = db_query("UPDATE {taxonomy_term_data} SET name = REPLACE(name, '-0', '') WHERE name like 'TM-%-0'")) {
-      throw new Exception(t('Could not find/rename any term.'));
+      throw new \Exception(t('Could not find/rename any term.'));
     }
 
     // Export tree.
-    dennis_term_manager_export_terms(',', array('Category'), array(), DENNIS_TERM_MANAGER_DESTINATION_FILE);
-
+    dennis_term_manager_export_terms(',', array($this->vocabulary), array(), DENNIS_TERM_MANAGER_DESTINATION_FILE);
     // Load the exported tree.
     $destination = _dennis_term_manager_get_files_folder();
     $exported_tree = drupal_realpath($destination) . '/taxonomy_export.csv';
@@ -318,17 +359,17 @@ class TermManagerContext implements SnippetAcceptingContext
     $dennis_term_manager_sbk = $term_child_count_column;
     uasort($actions, '_dennis_term_manager_sbk');
 
-    $out_filename = '/tmp/dupe_actions.csv';
-
+    $filename = '/tmp/dupe_actions.csv';
     // Create new csv with actions.
-    $out = fopen($out_filename, 'w');
+    $out = fopen($filename, 'w');
     fputcsv($out, $heading_row, $delimiter, '"');
     foreach ($actions as $action) {
       fputcsv($out, $action, $delimiter, '"');
     }
 
     // Process file.
-    $this->batch($out_filename);
+    $this->setFilename($filename);
+    $this->batch($filename);
   }
 
   /**
@@ -336,14 +377,14 @@ class TermManagerContext implements SnippetAcceptingContext
    */
   private function diff($pass_tree, $exported_tree) {
     if (!file_exists($pass_tree)) {
-      throw new Exception(t('!file doesn\'t exist', array(
+      throw new \Exception(t('!file doesn\'t exist', array(
         '!file' => $pass_tree,
       )));
     }
     $test_content = file_get_contents($pass_tree);
 
     if (!file_exists($exported_tree)) {
-      throw new Exception(t('!file doesn\'t exist', array(
+      throw new \Exception(t('!file doesn\'t exist', array(
         '!file' => $exported_tree,
       )));
     }
@@ -366,7 +407,7 @@ class TermManagerContext implements SnippetAcceptingContext
         }
       }
       // Throw exception with failing line.
-      throw new Exception(t('Exported tree !file1 doesn\'t match !file2 at row !line', array(
+      throw new \Exception(t('Exported tree !file1 doesn\'t match !file2 at row !line', array(
         '!file1' => $exported_tree,
         '!file2' => $pass_tree,
         '!line' => $failing_line,
