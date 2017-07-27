@@ -71,6 +71,14 @@ class TermManagerContext implements SnippetAcceptingContext
     // Make sure term manager is enabled.
     variable_set('dennis_term_manager_enabled', 1);
 
+    // Check if hook_batch_alter() exists on Term Manager.
+    // This is required in order to disable progressive batch.
+    // This is why the Behat extension requires Term Manager 7.x-2.x branch.
+    $list = (module_implements('batch_alter'));
+    if (!in_array('dennis_term_manager', $list)) {
+      throw new \Exception('Cannot find dennis_term_manager_batch_alter(). Make sure you are using the correct version of Term Manager');
+    }
+
     // Creates Vocabulary if needed.
     if (taxonomy_vocabulary_machine_name_load($this->vocabularyName) == FALSE) {
       $vocabulary = new \stdClass();
