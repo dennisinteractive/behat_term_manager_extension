@@ -46,7 +46,7 @@ class TermManagerContext implements SnippetAcceptingContext
   /**
    * @var string Vocabulary name used to test terms.
    */
-  private $vocabularyNameMachineName = 'term_manager_tests';
+  private $vocabularyMachineName = 'term_manager_tests';
 
   /**
    * @BeforeScenario
@@ -92,7 +92,7 @@ class TermManagerContext implements SnippetAcceptingContext
     // Creates Vocabulary if needed.
     if ($vocabulary = taxonomy_vocabulary_machine_name_load($vocabularyMachineName)) {
       $this->vocabularyName = $vocabulary->name;
-      $this->vocabularyMachineName = $vocabulary->machineName;
+      $this->vocabularyMachineName = $vocabulary->machine_name;
     }
     else {
       $vocabulary = new \stdClass();
