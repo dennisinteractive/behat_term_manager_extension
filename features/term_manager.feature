@@ -92,6 +92,5 @@ Feature: Term Manager
     When Term Manager processes dupe actions
 
     # Test dupe actions on node.
-    Given I am on "term_manager6"
-    When I follow "TM-Raspberry" in the ".breadcrumb" element
-    Then I should be on "/tm-raspberry"
+    Given I am on "tm-raspberry"
+    Then I should not see the link "Article 6"
