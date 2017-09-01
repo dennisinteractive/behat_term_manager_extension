@@ -38,7 +38,5 @@ ln -s ../vendor/dennisdigital/behat_term_manager_extension/features term_manager
 You can commit this symlink
 
 ### Dependencies:
-- Behat
-- Symfony DPI
-- Mink
+- Drupal Context
 - Term Manager 7.x-2.x https://github.com/dennisinteractive/dennis_term_manager/tree/7.x-2.x
