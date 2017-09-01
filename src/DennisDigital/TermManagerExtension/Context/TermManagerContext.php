@@ -60,7 +60,8 @@ class TermManagerContext implements Context
     // Get all the contexts we need.
     //$this->MinkContext = $environment->getContext('Drupal\DrupalExtension\Context\MinkContext');
     $this->drupalContext = $environment->getContext('Drupal\DrupalExtension\Context\DrupalContext');
-    $this->drupalContext->getDriver('drupal')->getCore()->bootstrap();
+    // Ensure the drupal driver is bootstrapped.
+    $this->drupalContext->getDriver('drupal');
     $this->setup();
   }
 
