@@ -49,6 +49,11 @@ class TermManagerContext implements Context
   private $vocabularyMachineName = 'term_manager_tests';
 
   /**
+   * @var bool Whether the scenario setup has been done.
+   */
+  private $setupDone;
+
+  /**
    * @BeforeScenario
    *
    * @param BeforeScenarioScope $scope
