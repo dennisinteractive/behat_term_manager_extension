@@ -53,7 +53,7 @@ class TermManagerContext implements Context
    *
    * @param BeforeScenarioScope $scope
    */
-  public function before(BeforeScenarioScope $scope) {
+  public function beforeScenario(BeforeScenarioScope $scope) {
     // Get the environment.
     $environment = $scope->getEnvironment();
 
@@ -61,26 +61,28 @@ class TermManagerContext implements Context
     $this->drupalContext = $environment->getContext('Drupal\DrupalExtension\Context\DrupalContext');
     // Ensure the drupal driver is bootstrapped.
     $this->drupalContext->getDriver('drupal');
-    $this->setup();
   }
 
   /**
    * Initial setup.
    */
   private function setup() {
-    // Make sure term manager is enabled.
-    variable_set('dennis_term_manager_enabled', 1);
+    if (empty($this->setupDone)) {
+      $this->setupDone = TRUE;
+      // Make sure term manager is enabled.
+      variable_set('dennis_term_manager_enabled', 1);
 
-    // Check if hook_batch_alter() exists on Term Manager.
-    // This is required in order to disable progressive batch.
-    // This is why the Behat extension requires Term Manager 7.x-2.x branch.
-    $list = (module_implements('batch_alter'));
-    if (!in_array('dennis_term_manager', $list)) {
-      throw new \Exception('Cannot find dennis_term_manager_batch_alter(). Make sure you are using the correct version of Term Manager');
+      // Check if hook_batch_alter() exists on Term Manager.
+      // This is required in order to disable progressive batch.
+      // This is why the Behat extension requires Term Manager 7.x-2.x branch.
+      $list = (module_implements('batch_alter'));
+      if (!in_array('dennis_term_manager', $list)) {
+        throw new \Exception('Cannot find dennis_term_manager_batch_alter(). Make sure you are using the correct version of Term Manager');
+      }
+
+      // Initial cleanup of taxonomy tree and queue.
+      $this->iCleanUpTheTestingTermsForTermManager();
     }
-
-    // Initial cleanup of taxonomy tree and queue.
-    $this->iCleanUpTheTestingTermsForTermManager();
   }
 
   /**
@@ -109,8 +111,13 @@ class TermManagerContext implements Context
   /**
    * @AfterScenario
    */
-  public function cleanTaxonomy()
+  public function afterScenario()
   {
+    if (empty($this->setupDone)) {
+      // No term manager scenarios were used, so no cleanup needed.
+      return;
+    }
+
     if ($vocabulary = taxonomy_vocabulary_machine_name_load($this->vocabularyMachineName)) {
       $this->iCleanUpTheTestingTermsForTermManager();
       // Only delete vocabulary if it was created during tests.
@@ -328,6 +335,7 @@ class TermManagerContext implements Context
    */
   public function iAmManagingTheVocabularyWithTermManager($vocabularyName)
   {
+    $this->setup();
     $this->vocabularyName = $vocabularyName;
     $this->vocabularyMachineName = $this->machineName($this->vocabularyName);
     $this->getVocabulary($this->vocabularyMachineName);
@@ -338,6 +346,7 @@ class TermManagerContext implements Context
    */
   public function iCreateATaxonomyTreeUsing($csv)
   {
+    $this->setup();
     $filename = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
 
     $this->setFilename($filename);
@@ -349,7 +358,7 @@ class TermManagerContext implements Context
    */
   public function iCheckThatTheTaxonomyTreeMatchesTheContentsOf($csv)
   {
-
+    $this->setup();
     // Export CSV of taxonomy tree.
     $columns = dennis_term_manager_default_columns();
 
@@ -383,6 +392,7 @@ class TermManagerContext implements Context
    */
   public function termManagerProcesses($csv)
   {
+    $this->setup();
     $filename = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
 
     $this->setFilename($filename);
@@ -398,6 +408,7 @@ class TermManagerContext implements Context
    */
   public function termManagerProcessesDupeActions()
   {
+    $this->setup();
     $test_actions = array('merge', 'move parent');
 
     // Updated duplicated names, by removing the '-0' suffix.
