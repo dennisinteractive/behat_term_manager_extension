@@ -24,7 +24,6 @@ default:
   suites:
     default:
       contexts:
-        - FeatureContext
         - DennisDigital\TermManagerExtension\Context\TermManagerContext
 ```
 
