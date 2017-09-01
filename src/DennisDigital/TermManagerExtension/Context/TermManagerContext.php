@@ -41,12 +41,12 @@ class TermManagerContext implements SnippetAcceptingContext
   /**
    * @var string Vocabulary used to test terms.
    */
-  private $vocabulary = 'Term Manager Tests';
+  private $vocabularyName = 'Term Manager Tests';
 
   /**
    * @var string Vocabulary name used to test terms.
    */
-  private $vocabularyName = 'term_manager_tests';
+  private $vocabularyMachineName = 'term_manager_tests';
 
   /**
    * @BeforeScenario
@@ -59,7 +59,6 @@ class TermManagerContext implements SnippetAcceptingContext
     print_r($environment);
 
     // Get all the contexts we need.
-    //$this->BDDCommonContext = $environment->getContext('Behat\BDDCommonExtension\Context\BDDCommonContext');
     //$this->MinkContext = $environment->getContext('Drupal\DrupalExtension\Context\MinkContext');
     $this->drupalContext = $environment->getContext('Drupal\DrupalExtension\Context\DrupalContext');
     $this->drupalContext->getDriver('drupal')->getCore()->bootstrap();
@@ -75,13 +74,12 @@ class TermManagerContext implements SnippetAcceptingContext
     // Make sure term manager is enabled.
     variable_set('dennis_term_manager_enabled', 1);
 
-    // Creates Vocabulary if needed.
-    if (taxonomy_vocabulary_machine_name_load($this->vocabularyName) == FALSE) {
-      $vocabulary = new \stdClass();
-      $vocabulary->name = $this->vocabulary;
-      $vocabulary->machine_name = $this->vocabularyName;
-      taxonomy_vocabulary_save($vocabulary);
-      $this->cleanVocabulary = TRUE;
+    // Check if hook_batch_alter() exists on Term Manager.
+    // This is required in order to disable progressive batch.
+    // This is why the Behat extension requires Term Manager 7.x-2.x branch.
+    $list = (module_implements('batch_alter'));
+    if (!in_array('dennis_term_manager', $list)) {
+      throw new \Exception('Cannot find dennis_term_manager_batch_alter(). Make sure you are using the correct version of Term Manager');
     }
 
     // Initial cleanup of taxonomy tree and queue.
@@ -89,13 +87,38 @@ class TermManagerContext implements SnippetAcceptingContext
   }
 
   /**
+   * Returns the vocabulary. Creates a vocabulary if needed;
+   *
+   * @param $vocabularyMachineName The vocabulary machine name.
+   */
+  public function getVocabulary($vocabularyMachineName) {
+    // Creates Vocabulary if needed.
+    if ($vocabulary = taxonomy_vocabulary_machine_name_load($vocabularyMachineName)) {
+      $this->vocabularyName = $vocabulary->name;
+      $this->vocabularyMachineName = $vocabulary->machine_name;
+    }
+    else {
+      $vocabulary = new \stdClass();
+      $vocabulary->name = $this->vocabularyName;
+      $vocabulary->machine_name = $this->vocabularyMachineName;
+      taxonomy_vocabulary_save($vocabulary);
+
+      // Mark it for deletion at the end of the scenario.
+      $this->cleanVocabulary = TRUE;
+    }
+  }
+
+  /**
    * @AfterScenario
    */
   public function cleanTaxonomy()
   {
-    if ($vocabulary = taxonomy_vocabulary_machine_name_load('term_manager_tests')) {
+    if ($vocabulary = taxonomy_vocabulary_machine_name_load($this->vocabularyMachineName)) {
       $this->iCleanUpTheTestingTermsForTermManager();
-      taxonomy_vocabulary_delete($vocabulary->vid);
+      // Only delete vocabulary if it was created during tests.
+      if ($this->cleanVocabulary === TRUE) {
+        taxonomy_vocabulary_delete($vocabulary->vid);
+      }
     }
   }
 
@@ -156,6 +179,46 @@ class TermManagerContext implements SnippetAcceptingContext
   }
 
   /**
+   * Helper to replace the tokens on csv files.
+   * Used to support any vocabulary name as parameter i.e.
+   *  -  Given I am managing the vocabulary "Categories" with Term Manager
+   *
+   * @param $file The file object or filename.
+   */
+  private function replaceTokens($file) {
+    // Support file obj or filename.
+    if (is_object($file) && isset($file->uri)) {
+      $filename = drupal_realpath($file->uri);
+    }
+    elseif (is_string($file)) {
+      $filename = $file;
+    }
+
+    // Detect delimiter.
+    $delimiter = _dennis_term_manager_detect_delimiter(file_get_contents($filename));
+
+    // Make a copy of the file for read only.
+    $tempFile = '/tmp/term_manager_token_replace.csv';
+    copy($filename, $tempFile);
+
+    // Create the file to save after replacing tokens.
+    $out = fopen($filename, 'w');
+
+    if (($handle = fopen($tempFile, "r")) !== FALSE) {
+      while (($data = fgetcsv($handle, 1000, $delimiter)) !== FALSE) {
+        $num = count($data);
+        for ($c = 0; $c < $num; $c++) {
+          $data[$c] = str_replace('{vocabulary_name}', $this->vocabularyName, $data[$c]);
+        }
+        fputcsv($out, $data, $delimiter, '"');
+      }
+      fclose($handle);
+    }
+    fclose($out);
+    unlink($tempFile);
+  }
+
+  /**
    * Batch processing.
    */
   private function batch() {
@@ -163,6 +226,7 @@ class TermManagerContext implements SnippetAcceptingContext
 
     // Copy the CSV file into files folder.
     $file = _dennis_term_manager_file_copy($this->getFilename(), $destination);
+    $this->replaceTokens($file);
     $this->setFile($file);
 
     // Process the file.
@@ -229,20 +293,44 @@ class TermManagerContext implements SnippetAcceptingContext
    */
   private function taxonomyCleanup() {
     // Delete terms created during tests.
-    $term = taxonomy_get_term_by_name('Temp', $this->vocabularyName);
+    $term = taxonomy_get_term_by_name('Temp', $this->vocabularyMachineName);
     if ($term = reset($term)) {
       taxonomy_term_delete($term->tid);
     }
 
-    $term = taxonomy_get_term_by_name('TM-Fruits', $this->vocabularyName);
+    $term = taxonomy_get_term_by_name('TM-Fruits', $this->vocabularyMachineName);
     if ($term = reset($term)) {
       taxonomy_term_delete($term->tid);
     }
 
-    $term = taxonomy_get_term_by_name('TM-Fruits2', $this->vocabularyName);
+    $term = taxonomy_get_term_by_name('TM-Fruits2', $this->vocabularyMachineName);
     if ($term = reset($term)) {
       taxonomy_term_delete($term->tid);
     }
+  }
+
+  /**
+   * Helper to generate machine name from text.
+   *
+   * @param $value
+   *
+   * @return mixed
+   */
+  public function machineName($value) {
+    $new_value = strtolower($value);
+    $new_value = preg_replace('/[^a-z0-9_]+/', '_', $new_value);
+    return preg_replace('/_+/', '_', $new_value);
+
+  }
+
+  /**
+   * @Given I am managing the vocabulary :vocabularyName with Term Manager
+   */
+  public function iAmManagingTheVocabularyWithTermManager($vocabularyName)
+  {
+    $this->vocabularyName = $vocabularyName;
+    $this->vocabularyMachineName = $this->machineName($this->vocabularyName);
+    $this->getVocabulary($this->vocabularyMachineName);
   }
 
   /**
@@ -261,7 +349,6 @@ class TermManagerContext implements SnippetAcceptingContext
    */
   public function iCheckThatTheTaxonomyTreeMatchesTheContentsOf($csv)
   {
-    $csv = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
 
     // Export CSV of taxonomy tree.
     $columns = dennis_term_manager_default_columns();
@@ -271,14 +358,24 @@ class TermManagerContext implements SnippetAcceptingContext
     foreach ($exclude as $item) {
       unset ($columns[array_search($item, $columns)]);
     }
-    dennis_term_manager_export_terms(',', array($this->vocabulary), $columns, DENNIS_TERM_MANAGER_DESTINATION_FILE);
+    dennis_term_manager_export_terms(',', array($this->vocabularyName), $columns, DENNIS_TERM_MANAGER_DESTINATION_FILE);
 
     $destination = _dennis_term_manager_get_files_folder();
     $exported_tree = drupal_realpath($destination) . '/taxonomy_export.csv';
+    $passFile = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
+
+    // Copy to a temporary folder;
+    $tempFile = '/tmp/term_manager_' . $csv;
+    copy($passFile, $tempFile);
+
+    // Replace tokens.
+    $this->replaceTokens($tempFile);
 
     // Compare exported CSV against the CSV saved on the repo.
     // Pass tree must be contained inside the exported tree in order for the test to pass.
-    $this->diff($csv, $exported_tree);
+    $this->diff($tempFile, $exported_tree);
+
+    unlink($tempFile);
   }
 
   /**
@@ -310,7 +407,8 @@ class TermManagerContext implements SnippetAcceptingContext
     }
 
     // Export tree.
-    dennis_term_manager_export_terms(',', array($this->vocabulary), array(), DENNIS_TERM_MANAGER_DESTINATION_FILE);
+    dennis_term_manager_export_terms(',', array($this->vocabularyName), array(), DENNIS_TERM_MANAGER_DESTINATION_FILE);
+
     // Load the exported tree.
     $destination = _dennis_term_manager_get_files_folder();
     $exported_tree = drupal_realpath($destination) . '/taxonomy_export.csv';
@@ -362,17 +460,18 @@ class TermManagerContext implements SnippetAcceptingContext
     $dennis_term_manager_sbk = $term_child_count_column;
     uasort($actions, '_dennis_term_manager_sbk');
 
-    $filename = '/tmp/dupe_actions.csv';
+    $tempFile = '/tmp/term_manager_dupe_actions.csv';
     // Create new csv with actions.
-    $out = fopen($filename, 'w');
+    $out = fopen($tempFile, 'w');
     fputcsv($out, $heading_row, $delimiter, '"');
     foreach ($actions as $action) {
       fputcsv($out, $action, $delimiter, '"');
     }
 
     // Process file.
-    $this->setFilename($filename);
-    $this->batch($filename);
+    $this->setFilename($tempFile);
+    $this->batch($tempFile);
+    unlink($tempFile);
   }
 
   /**
