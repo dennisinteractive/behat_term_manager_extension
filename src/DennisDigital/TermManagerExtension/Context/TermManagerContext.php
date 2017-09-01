@@ -541,8 +541,6 @@ class TermManagerContext implements Context
     $file = $this->getFile();
     $date = date('Y-m-d_H-i-s', REQUEST_TIME);
     $errors_file = preg_replace("/(.*)[.](.*)/", "$1-$date-errors.$2", $file->uri);
-    $dry_run_file = preg_replace("/(.*)[.](.*)/", "$1-$date-dry_run.$2", $file->uri);
-    $report_file = preg_replace("/(.*)[.](.*)/", "$1-$date-report.txt", $file->uri);
 
     // Test that file with errors doesn't exist.
     if (file_exists($errors_file)) {
