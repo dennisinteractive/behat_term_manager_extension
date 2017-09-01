@@ -15,6 +15,8 @@ Install using composer as usual, by adding the repo to _composer.json_
 
 Then run
 `composer require dennisdigital/behat-term-manager-extension:master-dev`
+or
+`composer require dennisdigital/behat-term-manager-extension:~1.0`
 
 Add the extension the behat.yml on your site.
 ```
@@ -27,6 +29,13 @@ default:
 ```
 
 See examples of tests in https://github.com/dennisinteractive/behat_term_manager_extension/tree/master/features
+
+On a given site, you can create a symlink inside the *features* folder pointing to the features of the extension, i.e.
+```
+cd tests/features
+ln -s ../vendor/dennisdigital/behat_term_manager_extension/features term_manager
+```
+You can commit this symlink
 
 ### Dependencies:
 - Behat
