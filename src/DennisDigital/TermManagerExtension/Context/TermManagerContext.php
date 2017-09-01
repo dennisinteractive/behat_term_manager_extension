@@ -86,7 +86,8 @@ class TermManagerContext implements Context
   /**
    * Returns the vocabulary. Creates a vocabulary if needed;
    *
-   * @param $vocabularyMachineName The vocabulary machine name.
+   * @param string $vocabularyMachineName
+   *   The vocabulary machine name.
    */
   public function getVocabulary($vocabularyMachineName) {
     // Creates Vocabulary if needed.
@@ -180,7 +181,8 @@ class TermManagerContext implements Context
    * Used to support any vocabulary name as parameter i.e.
    *  -  Given I am managing the vocabulary "Categories" with Term Manager
    *
-   * @param $file The file object or filename.
+   * @param /stdClass $file
+   *   The file object or filename.
    */
   private function replaceTokens($file) {
     // Support file obj or filename.
@@ -265,7 +267,8 @@ class TermManagerContext implements Context
   /**
    * Cleans queue table.
    *
-   * @param $name The queue name.
+   * @param string $name
+   *  The queue name.
    */
   private function queueCleanup($name) {
     db_delete('queue')
