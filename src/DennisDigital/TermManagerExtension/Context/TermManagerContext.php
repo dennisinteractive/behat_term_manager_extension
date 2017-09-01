@@ -388,7 +388,7 @@ class TermManagerContext implements Context
   }
 
   /**
-   * @When term manager processes :csv
+   * @When Term Manager processes :csv
    */
   public function termManagerProcesses($csv)
   {
@@ -404,7 +404,7 @@ class TermManagerContext implements Context
    * This function will find duplicated term names and create a CSV file with actions to merge them
    * i.e. Raspberry-0 will be merged to Raspberry.
    *
-   * @When term manager processes dupe actions
+   * @When Term Manager processes dupe actions
    */
   public function termManagerProcessesDupeActions()
   {
