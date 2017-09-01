@@ -2,7 +2,7 @@
 
 namespace DennisDigital\TermManagerExtension\Context;
 
-use Behat\Behat\Context\SnippetAcceptingContext;
+use Behat\Behat\Context\Context;
 use Behat\Behat\Hook\Scope\BeforeScenarioScope;
 
 /**
@@ -10,7 +10,7 @@ use Behat\Behat\Hook\Scope\BeforeScenarioScope;
  *
  * @package Behat\TermManagerExtension\Context
  */
-class TermManagerContext implements SnippetAcceptingContext
+class TermManagerContext implements Context
 {
 
   /**
