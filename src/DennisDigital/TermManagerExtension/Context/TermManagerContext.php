@@ -2,7 +2,7 @@
 
 namespace DennisDigital\TermManagerExtension\Context;
 
-use Behat\Behat\Context\SnippetAcceptingContext;
+use Behat\Behat\Context\Context;
 use Behat\Behat\Hook\Scope\BeforeScenarioScope;
 
 /**
@@ -10,7 +10,7 @@ use Behat\Behat\Hook\Scope\BeforeScenarioScope;
  *
  * @package Behat\TermManagerExtension\Context
  */
-class TermManagerContext implements SnippetAcceptingContext
+class TermManagerContext implements Context
 {
 
   /**
@@ -49,44 +49,52 @@ class TermManagerContext implements SnippetAcceptingContext
   private $vocabularyMachineName = 'term_manager_tests';
 
   /**
+   * @var bool Whether the scenario setup has been done.
+   */
+  private $setupDone;
+
+  /**
    * @BeforeScenario
    *
    * @param BeforeScenarioScope $scope
    */
-  public function before(BeforeScenarioScope $scope) {
+  public function beforeScenario(BeforeScenarioScope $scope) {
     // Get the environment.
     $environment = $scope->getEnvironment();
 
     // Get all the contexts we need.
-    //$this->MinkContext = $environment->getContext('Drupal\DrupalExtension\Context\MinkContext');
     $this->drupalContext = $environment->getContext('Drupal\DrupalExtension\Context\DrupalContext');
-    $this->drupalContext->getDriver('drupal')->getCore()->bootstrap();
-    $this->setup();
+    // Ensure the drupal driver is bootstrapped.
+    $this->drupalContext->getDriver('drupal');
   }
 
   /**
    * Initial setup.
    */
   private function setup() {
-    // Make sure term manager is enabled.
-    variable_set('dennis_term_manager_enabled', 1);
+    if (empty($this->setupDone)) {
+      $this->setupDone = TRUE;
+      // Make sure term manager is enabled.
+      variable_set('dennis_term_manager_enabled', 1);
 
-    // Check if hook_batch_alter() exists on Term Manager.
-    // This is required in order to disable progressive batch.
-    // This is why the Behat extension requires Term Manager 7.x-2.x branch.
-    $list = (module_implements('batch_alter'));
-    if (!in_array('dennis_term_manager', $list)) {
-      throw new \Exception('Cannot find dennis_term_manager_batch_alter(). Make sure you are using the correct version of Term Manager');
+      // Check if hook_batch_alter() exists on Term Manager.
+      // This is required in order to disable progressive batch.
+      // This is why the Behat extension requires Term Manager 7.x-2.x branch.
+      $list = (module_implements('batch_alter'));
+      if (!in_array('dennis_term_manager', $list)) {
+        throw new \Exception('Cannot find dennis_term_manager_batch_alter(). Make sure you are using the correct version of Term Manager');
+      }
+
+      // Initial cleanup of taxonomy tree and queue.
+      $this->iCleanUpTheTestingTermsForTermManager();
     }
-
-    // Initial cleanup of taxonomy tree and queue.
-    $this->iCleanUpTheTestingTermsForTermManager();
   }
 
   /**
    * Returns the vocabulary. Creates a vocabulary if needed;
    *
-   * @param $vocabularyMachineName The vocabulary machine name.
+   * @param string $vocabularyMachineName
+   *   The vocabulary machine name.
    */
   public function getVocabulary($vocabularyMachineName) {
     // Creates Vocabulary if needed.
@@ -108,8 +116,13 @@ class TermManagerContext implements SnippetAcceptingContext
   /**
    * @AfterScenario
    */
-  public function cleanTaxonomy()
+  public function afterScenario()
   {
+    if (empty($this->setupDone)) {
+      // No term manager scenarios were used, so no cleanup needed.
+      return;
+    }
+
     if ($vocabulary = taxonomy_vocabulary_machine_name_load($this->vocabularyMachineName)) {
       $this->iCleanUpTheTestingTermsForTermManager();
       // Only delete vocabulary if it was created during tests.
@@ -180,7 +193,8 @@ class TermManagerContext implements SnippetAcceptingContext
    * Used to support any vocabulary name as parameter i.e.
    *  -  Given I am managing the vocabulary "Categories" with Term Manager
    *
-   * @param $file The file object or filename.
+   * @param /stdClass $file
+   *   The file object or filename.
    */
   private function replaceTokens($file) {
     // Support file obj or filename.
@@ -265,7 +279,8 @@ class TermManagerContext implements SnippetAcceptingContext
   /**
    * Cleans queue table.
    *
-   * @param $name The queue name.
+   * @param string $name
+   *  The queue name.
    */
   private function queueCleanup($name) {
     db_delete('queue')
@@ -325,6 +340,7 @@ class TermManagerContext implements SnippetAcceptingContext
    */
   public function iAmManagingTheVocabularyWithTermManager($vocabularyName)
   {
+    $this->setup();
     $this->vocabularyName = $vocabularyName;
     $this->vocabularyMachineName = $this->machineName($this->vocabularyName);
     $this->getVocabulary($this->vocabularyMachineName);
@@ -335,6 +351,7 @@ class TermManagerContext implements SnippetAcceptingContext
    */
   public function iCreateATaxonomyTreeUsing($csv)
   {
+    $this->setup();
     $filename = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
 
     $this->setFilename($filename);
@@ -346,7 +363,7 @@ class TermManagerContext implements SnippetAcceptingContext
    */
   public function iCheckThatTheTaxonomyTreeMatchesTheContentsOf($csv)
   {
-
+    $this->setup();
     // Export CSV of taxonomy tree.
     $columns = dennis_term_manager_default_columns();
 
@@ -376,10 +393,11 @@ class TermManagerContext implements SnippetAcceptingContext
   }
 
   /**
-   * @When term manager processes :csv
+   * @When Term Manager processes :csv
    */
   public function termManagerProcesses($csv)
   {
+    $this->setup();
     $filename = realpath(dirname(__FILE__) . '/../Resources/' . $csv);
 
     $this->setFilename($filename);
@@ -391,10 +409,11 @@ class TermManagerContext implements SnippetAcceptingContext
    * This function will find duplicated term names and create a CSV file with actions to merge them
    * i.e. Raspberry-0 will be merged to Raspberry.
    *
-   * @When term manager processes dupe actions
+   * @When Term Manager processes dupe actions
    */
   public function termManagerProcessesDupeActions()
   {
+    $this->setup();
     $test_actions = array('merge', 'move parent');
 
     // Updated duplicated names, by removing the '-0' suffix.
@@ -527,8 +546,6 @@ class TermManagerContext implements SnippetAcceptingContext
     $file = $this->getFile();
     $date = date('Y-m-d_H-i-s', REQUEST_TIME);
     $errors_file = preg_replace("/(.*)[.](.*)/", "$1-$date-errors.$2", $file->uri);
-    $dry_run_file = preg_replace("/(.*)[.](.*)/", "$1-$date-dry_run.$2", $file->uri);
-    $report_file = preg_replace("/(.*)[.](.*)/", "$1-$date-report.txt", $file->uri);
 
     // Test that file with errors doesn't exist.
     if (file_exists($errors_file)) {
