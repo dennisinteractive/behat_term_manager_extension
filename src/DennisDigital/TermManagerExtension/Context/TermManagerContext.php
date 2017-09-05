@@ -451,6 +451,11 @@ class TermManagerContext implements Context
         $term_name = $data[$name_column];
         $tid = $data[$tid_column];
 
+        // Only remove duplicates of terms we've created in our test.
+        if (strpos($term_name, 'TM-') === FALSE) {
+          continue;
+        }
+
         if (!isset($processed[$term_name])) {
           // Store tid.
           $processed[$term_name] = $tid;
