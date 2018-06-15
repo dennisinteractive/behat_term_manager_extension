@@ -4,6 +4,7 @@ namespace DennisDigital\TermManagerExtension\Context;
 
 use Behat\Behat\Context\Context;
 use Behat\Behat\Hook\Scope\BeforeScenarioScope;
+use Drupal\DrupalUserManagerInterface;
 
 /**
  * Class TermManagerContext
@@ -53,6 +54,18 @@ class TermManagerContext implements Context
    */
   private $setupDone;
 
+  /**
+   * @inheritdoc
+   */
+  public function setUserManager(DrupalUserManagerInterface $userManager) {
+  }
+  
+  /**
+   * @inheritdoc
+   */
+  public function getUserManager() {
+  }
+  
   /**
    * @BeforeScenario
    *
