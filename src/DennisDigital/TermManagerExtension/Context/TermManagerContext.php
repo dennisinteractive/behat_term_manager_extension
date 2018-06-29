@@ -2,22 +2,15 @@
 
 namespace DennisDigital\TermManagerExtension\Context;
 
-use Behat\Behat\Context\Context;
 use Behat\Behat\Hook\Scope\BeforeScenarioScope;
-use Drupal\DrupalUserManagerInterface;
+use Drupal\DrupalExtension\Context\RawDrupalContext;
 
 /**
  * Class TermManagerContext
  *
- * @package Behat\TermManagerExtension\Context
+ * @package DennisDigital\TermManagerExtension\Context
  */
-class TermManagerContext implements Context
-{
-
-  /**
-   * Stores drupal context.
-   */
-  private $drupalContext;
+class TermManagerContext extends RawDrupalContext {
 
   /**
    * Stores the file.
@@ -55,30 +48,13 @@ class TermManagerContext implements Context
   private $setupDone;
 
   /**
-   * @inheritdoc
-   */
-  public function setUserManager(DrupalUserManagerInterface $userManager) {
-  }
-  
-  /**
-   * @inheritdoc
-   */
-  public function getUserManager() {
-  }
-  
-  /**
    * @BeforeScenario
    *
    * @param BeforeScenarioScope $scope
    */
   public function beforeScenario(BeforeScenarioScope $scope) {
-    // Get the environment.
-    $environment = $scope->getEnvironment();
-
-    // Get all the contexts we need.
-    $this->drupalContext = $environment->getContext('Drupal\DrupalExtension\Context\DrupalContext');
     // Ensure the drupal driver is bootstrapped.
-    $this->drupalContext->getDriver('drupal');
+    $this->getDrupal()->getDriver('drupal');
   }
 
   /**
