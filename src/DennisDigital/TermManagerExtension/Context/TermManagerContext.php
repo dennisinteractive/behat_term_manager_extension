@@ -48,7 +48,7 @@ class TermManagerContext extends RawDrupalContext {
   private $setupDone;
 
   /**
-   * @BeforeScenario
+   * @BeforeScenario @api
    *
    * @param BeforeScenarioScope $scope
    */
